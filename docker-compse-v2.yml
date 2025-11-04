@@ -1,0 +1,105 @@
+version: '3'
+
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    ports:
+      - "9870:9870"   # NameNode Web UI
+      - "9000:9000"   # HDFS RPC
+    volumes:
+      - namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+    networks:
+      - hadoop
+
+  datanode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode1
+    ports:
+      - "9864:9864"   # DataNode1 Web UI
+    volumes:
+      - datanode1:/hadoop/dfs/data
+    env_file:
+      - ./hadoop.env
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    networks:
+      - hadoop
+    depends_on:
+      - namenode
+
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    ports:
+      - "9865:9864"   # DataNode2 Web UI (different host port)
+    volumes:
+      - datanode2:/hadoop/dfs/data
+    env_file:
+      - ./hadoop.env
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+    networks:
+      - hadoop
+    depends_on:
+      - namenode
+
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    ports:
+      - "8088:8088"   # YARN ResourceManager Web UI
+    env_file:
+      - ./hadoop.env
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode1:9864 datanode2:9864
+    networks:
+      - hadoop
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+
+  nodemanager:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager
+    ports:
+      - "8042:8042"   # NodeManager Web UI
+    env_file:
+      - ./hadoop.env
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode1:9864 datanode2:9864 resourcemanager:8088
+    networks:
+      - hadoop
+    depends_on:
+      - resourcemanager
+
+  historyserver:
+    image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
+    container_name: historyserver
+    ports:
+      - "8188:8188"   # JobHistory Server Web UI
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./hadoop.env
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870 datanode1:9864 datanode2:9864 resourcemanager:8088
+    networks:
+      - hadoop
+    depends_on:
+      - resourcemanager
+
+volumes:
+  namenode:
+  datanode1:
+  datanode2:
+  hadoop_historyserver:
+
+networks:
+  hadoop:
+    driver: bridge
